@@ -1,3 +1,6 @@
 <Solution>
+  <Project Path="ApiDATA/ApiDATA.csproj" Id="db975ca3-39a4-4897-8841-be87e090d3eb" />
+  <Project Path="ApiDOMAIN/ApiDOMAIN.csproj" Id="d99766f5-4907-4fdb-8ee0-c5b74deadad6" />
   <Project Path="ApiPruebaTecnica.csproj" />
+  <Project Path="ApiSERVICES/ApiSERVICES.csproj" Id="e312f573-c0e4-4675-aacf-2c690edc9b1d" />
 </Solution>
