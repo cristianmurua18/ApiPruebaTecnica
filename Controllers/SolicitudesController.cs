@@ -11,7 +11,7 @@ namespace ApiPruebaTecnica.Controllers
         //El sistema recibe un JSON con la siguiente estructura:
         //{
         //    "solicitudId": 1258, "paciente": {
-	    //      No viene el Id del paciente
+        //      No viene el Id del paciente
         //    "dni": "30123123", UNIQUE¿?
         //    "nombre": "Juan",
         //    "apellido": "Pérez", "fechaNacimiento": "1985-06-20"
@@ -28,15 +28,15 @@ namespace ApiPruebaTecnica.Controllers
 
 
 
-        //[HttpPost]
-        //public IActionResult CrearSolicitud([FromBody] Solicitud solicitud)
-        //{
-        //    if (solicitud == null || string.IsNullOrEmpty(solicitud.Nombre) || solicitud.Monto <= 0)
-        //    {
-        //        return BadRequest("Datos de solicitud inválidos.");
-        //    }
-        //    // Aquí se podría agregar la lógica para procesar la solicitud, como guardarla en una base de datos.
-        //    return Ok(new { Mensaje = "Solicitud creada exitosamente.", Solicitud = solicitud });
-        //}
+        [HttpPost]
+        public IActionResult CrearSolicitud([FromBody] string solicitud)
+        {
+            if (solicitud == null)
+            {
+                return BadRequest("Datos de solicitud vacios.");
+            }
+            // Aquí se podría agregar la lógica para procesar la solicitud, como guardarla en una base de datos.
+            return Ok(new { Mensaje = "Solicitud creada exitosamente.", Solicitud = solicitud });
+        }
     }
 }
