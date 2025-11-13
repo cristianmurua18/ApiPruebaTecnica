@@ -29,7 +29,7 @@ namespace ApiPruebaTecnica.Controllers
 
 
         [HttpPost]
-        public IActionResult CrearSolicitud([FromBody] string solicitud)
+        public IActionResult CrearSolicitud([FromBody] JsonResult solicitud)
         {
             if (solicitud == null)
             {

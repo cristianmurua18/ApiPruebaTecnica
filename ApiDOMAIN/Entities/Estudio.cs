@@ -1,10 +1,20 @@
-﻿namespace ApiPruebaTecnica.ApiDOMAIN.Entities
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace ApiPruebaTecnica.ApiDOMAIN.Entities
 {
     public class Estudio
     {
         public int Id { get; set; }
+
+        [Required]
+        [MaxLength(50)]
         public string Codigo { get; set; }
-        public string Descripcion { get; set; }
+
+        [Required]
+        [MaxLength(200)]
+        public required string Descripcion { get; set; }
+
+        [Required]
         public DateTime FechaSolicitud { get; set; }
 
         // Foreign Keys
