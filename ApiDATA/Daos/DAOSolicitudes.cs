@@ -39,21 +39,8 @@ namespace ApiPruebaTecnica.ApiDATA.Daos
 
                         if (prestador != null)
                         {
-                            // 4. Validar y ajustar el código del estudio según la edad del paciente
-                            var edadPaciente = CalcularEdad(paciente.FechaNacimiento);
-                            var codigoEstudio = solicitudDTO.Estudio.Codigo;
-
-                            if (edadPaciente > 48)
-                            {
-                                // Si el paciente es mayor de 48 años, agregar el prefijo "MONO-" si no lo tiene
-                                if (!codigoEstudio.StartsWith("MONO-", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    codigoEstudio = $"MONO-{codigoEstudio}";
-                                    solicitudDTO.Estudio.Codigo = codigoEstudio;
-                                }
-                            }
-
-                            //5. Crear el registro del estudio, vinculando las entidades correspondientes.
+                            
+                            //4. Crear el registro del estudio, vinculando las entidades correspondientes.
                             var query = @"INSERT INTO Estudios (Codigo, Descripcion, FechaSolicitud, PacienteId, MedicoId, PrestadorId) OUTPUT INSERTED.Id 
                                            VALUES (@Codigo, @Descripcion, @FechaSolicitud, @PacienteId, @MedicoId, @PrestadorId);";
 
@@ -227,26 +214,6 @@ namespace ApiPruebaTecnica.ApiDATA.Daos
             }
 
         }
-
-        /// <summary>
-        /// Calcula la edad de una persona basándose en su fecha de nacimiento
-        /// </summary>
-        /// <param name="fechaNacimiento">Fecha de nacimiento del paciente</param>
-        /// <returns>Edad en años</returns>
-        private int CalcularEdad(DateTime fechaNacimiento)
-        {
-            var hoy = DateTime.Today;
-            var edad = hoy.Year - fechaNacimiento.Year;
-
-            // Ajustar si aún no ha cumplido años este año
-            if (fechaNacimiento.Date > hoy.AddYears(-edad))
-            {
-                edad--;
-            }
-
-            return edad;
-        }
-
 
     }
 
