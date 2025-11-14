@@ -1,4 +1,5 @@
 ﻿using ApiPruebaTecnica.ApiDOMAIN.DTOs;
+using Dapper;
 using System.Data;
 
 namespace ApiPruebaTecnica.ApiDATA.Daos
@@ -12,156 +13,208 @@ namespace ApiPruebaTecnica.ApiDATA.Daos
         public async Task<EstudioDTO> ProcesarSolicitudAsync(SolicitudDTO solicitudDTO)
         {
 
-            // 1. Obtener o crear Paciente
-            //var paciente = await ObtenerOCrearPacienteAsync(solicitudDTO.Paciente);
-
-            return new EstudioDTO
+            if (_dbConnection.State != ConnectionState.Open)
             {
-                Codigo = "EST123",
-                Descripcion = "Estudio procesado exitosamente",
-                FechaSolicitud = DateTime.Now
-            };
+                _dbConnection.Open();
+            }
 
+            //Abro transaccion
+            using (var transaccionn = _dbConnection.BeginTransaction())
+            {
+                // 1. Obtener o crear Paciente
+                var paciente = await ObtenerOCrearPacienteAsync(solicitudDTO.Paciente, transaccionn);
+
+                if (paciente != null)
+                {
+                    //Esto implica que el paciente fue creado o ya existía
+
+                    // 2. Obtener o crear o actualizar el Médico
+                    //            
+                    var medico = await ObtenerOCrearMedicoAsync(solicitudDTO.Medico, transaccionn);
+
+                    if (medico != null)
+                    {
+                        // 3. Validar que el prestador existe
+                        var prestador = await ValidarPrestadorAsync(solicitudDTO.PrestadorId, transaccionn);
+
+                        if (prestador != null)
+                        {
+                            // 4. Crear el registro del estudio, vinculando las entidades correspondientes.
+                            var query = @"INSERT INTO Estudios (Codigo, Descripcion, FechaSolicitud, PacienteId, MedicoId, PrestadorId) OUTPUT INSERTED.Id 
+                                           VALUES (@Codigo, @Descripcion, @FechaSolicitud, @PacienteId, @MedicoId, @PrestadorId);";
+
+                            var estudio = await _dbConnection.QueryFirstOrDefaultAsync<EstudioDTO>(query, new { Codigo = solicitudDTO.Estudio.Codigo, Descripcion = solicitudDTO.Estudio.Descripcion, FechaSolicitud = DateTime.Now, PacienteId = paciente.Id, MedicoId = medico.Id, PrestadorId = prestador.Id }, transaction: transaccionn);
+
+                            if (estudio != null)
+                            {
+                                // Si todo salió bien, confirmo la transacción
+                                transaccionn.Commit();
+                                return estudio;
+
+                            }
+                            else
+                            {
+                                // Si hubo un error al insertar el estudio, hago rollback
+                                transaccionn.Rollback();
+                                return null;
+                            }
+
+                        }
+
+                    }
+                }
+                // Si hubo algún error en el proceso, hago rollback
+                transaccionn.Rollback();
+                return null;
+
+            }
 
         }
 
-        //private async Task<PacienteDTO> ObtenerOCrearPacienteAsync(PacienteDTO paciente)
-        //{
+        private async Task<PacienteDTO> ObtenerOCrearPacienteAsync(PacienteDTO paciente, IDbTransaction transaction)
+        {
+            // Buscar por DNI (único)
+            var query = @"SELECT * FROM Pacientes WHERE Dni = @Dni";
 
-        //    var query = "SELECT * FROM Pacientes WHERE Dni = @Dni";
-        //    // Buscar por DNI (único)
+            //Uso conexion a la base de datos
 
-        //    using (var transaccionn = _dbConnection.BeginTransaction()) {
-        //    var resultado = await transaccionn.Connection.QueryFirstOrDefaultAsync<PacienteDTO>(query, new { Dni = paciente.Dni }, transaction: transaccionn);
-        //        .FirstOrDefaultAsync(p => p.Dni == pacienteDTO.Dni);
+            var pacienteBd = await _dbConnection.QueryFirstOrDefaultAsync<PacienteDTO>(query, new { Dni = paciente.Dni }, transaction: transaction);
 
-        //    if (paciente == null)
-        //    {
-        //        paciente = new Paciente
-        //        {
-        //            Dni = pacienteDTO.Dni,
-        //            Nombre = pacienteDTO.Nombre,
-        //            Apellido = pacienteDTO.Apellido,
-        //            FechaNacimiento = pacienteDTO.FechaNacimiento
-        //        };
+            // Verificar si el paciente ya existe
+            if (pacienteBd != null)
+            {
+                // El paciente ya existe, devolverlo con los datos completos
+                var pacienteCompleto = new PacienteDTO
+                {
+                    Id = pacienteBd.Id,
+                    Dni = pacienteBd.Dni,
+                    Nombre = pacienteBd.Nombre,
+                    Apellido = pacienteBd.Apellido,
+                    FechaNacimiento = pacienteBd.FechaNacimiento
+                };
+                return pacienteCompleto;
 
-        //        _context.Pacientes.Add(paciente);
-        //        await _context.SaveChangesAsync();
-        //        _logger.LogInformation($"Nuevo paciente creado: {paciente.Id}");
-        //    }
-        //    else
-        //    {
-        //        _logger.LogInformation($"Paciente existente reutilizado: {paciente.Id}");
-        //    }
+            }
+            else
+            {
+                //El paciente no existe, debo agregarlo a la base de datos
+                var insertQuery = @"INSERT INTO Pacientes (Dni, Nombre, Apellido, FechaNacimiento) OUTPUT INSERTED.Id VALUES (@Dni, @Nombre, @Apellido, @FechaNacimiento);";
 
-        //    return paciente;
-        //}
+                //Debo agregar los datos que vienen de la variable paciente que llega como parámetro del servicio
+                var nuevoId = await _dbConnection.QueryFirstOrDefaultAsync<int>(insertQuery, new
+                {
+                    Dni = paciente.Dni,
+                    Nombre = paciente.Nombre,
+                    Apellido = paciente.Apellido,
+                    FechaNacimiento = paciente.FechaNacimiento
+                }, transaction: transaction);
 
-        //    using (var transaction = await _daoSolicitudes.ProcesarSolicitudAsync(solicitud))
-        //    {
-        //        try
-        //        {
-        //            // 1. Obtener o crear Paciente
-        //            var paciente = await ObtenerOCrearPacienteAsync(solicitudDTO.Paciente);
+                if (nuevoId > 0)
+                {
+                    // Devuelvo un nuevo PacienteDTO con el Id generado y los datos originales
+                    return new PacienteDTO
+                    {
+                        Id = nuevoId,
+                        Dni = paciente.Dni,
+                        Nombre = paciente.Nombre,
+                        Apellido = paciente.Apellido,
+                        FechaNacimiento = paciente.FechaNacimiento
+                    };
+                }
+                else
+                {
+                    return null;
+                }
 
-        //            // 2. Obtener o crear Médico
-        //            var medico = await ObtenerOCrearMedicoAsync(solicitudDTO.Medico);
+            }
 
-        //            // 3. Validar que Prestador existe
-        //            var prestador = await _context.Prestadores
-        //                .FirstOrDefaultAsync(p => p.Id == solicitudDTO.PrestadorId);
+        }
 
-        //            if (prestador == null)
-        //            {
-        //                throw new InvalidOperationException($"Prestador con Id {solicitudDTO.PrestadorId} no existe");
-        //            }
+        private async Task<MedicoDTO> ObtenerOCrearMedicoAsync(MedicoDTO medico, IDbTransaction transaction)
+        {
 
-        //            // 4. Crear Estudio
-        //            var estudio = new Estudio
-        //            {
-        //                Codigo = solicitudDTO.Estudio.Codigo,
-        //                Descripcion = solicitudDTO.Estudio.Descripcion,
-        //                FechaSolicitud = solicitudDTO.Estudio.FechaSolicitud,
-        //                PacienteId = paciente.Id,
-        //                MedicoId = medico.Id,
-        //                PrestadorId = solicitudDTO.PrestadorId
-        //            };
 
-        //            _context.Estudios.Add(estudio);
-        //            await _context.SaveChangesAsync();
+            var selectQuery = "SELECT * FROM Medicos WHERE Matricula = @Matricula";
+            // Buscar por Matrícula (o ambos campos)
 
-        //            // 5. Confirmar transacción
-        //            await transaction.CommitAsync();
+            var medicoBd = await _dbConnection.QueryFirstOrDefaultAsync<MedicoDTO>(selectQuery,
+                new { Matricula = medico.Matricula }, transaction : transaction);
 
-        //            _logger.LogInformation($"Solicitud {solicitudDTO.SolicitudId} procesada exitosamente. Estudio Id: {estudio.Id}");
-        //            return estudio.Id;
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            await transaction.RollbackAsync();
-        //            _logger.LogError($"Error procesando solicitud: {ex.Message}");
-        //            throw;
-        //        }
-        //    }
-        //}
+            //Existe el medico
+            if (medicoBd != null)
+            {
+                var medicoCompleto = new MedicoDTO
+                {
+                    Id = medicoBd.Id,
+                    Nombre = medicoBd.Nombre,
+                    Matricula = medicoBd.Matricula
 
-        //private async Task<Paciente> ObtenerOCrearPacienteAsync(PacienteDTO pacienteDTO)
-        //{
-        //    // Buscar por DNI (único)
-        //    var paciente = await _context.Pacientes
-        //        .FirstOrDefaultAsync(p => p.Dni == pacienteDTO.Dni);
+                };
+                return medicoCompleto;
 
-        //    if (paciente == null)
-        //    {
-        //        paciente = new Paciente
-        //        {
-        //            Dni = pacienteDTO.Dni,
-        //            Nombre = pacienteDTO.Nombre,
-        //            Apellido = pacienteDTO.Apellido,
-        //            FechaNacimiento = pacienteDTO.FechaNacimiento
-        //        };
+            }
+            else
+            {
+                var insertQuery = "INSERT INTO Medicos (Nombre, Matricula) OUTPUT INSERTED.Id VALUES (@Nombre, @Matricula);";
 
-        //        _context.Pacientes.Add(paciente);
-        //        await _context.SaveChangesAsync();
-        //        _logger.LogInformation($"Nuevo paciente creado: {paciente.Id}");
-        //    }
-        //    else
-        //    {
-        //        _logger.LogInformation($"Paciente existente reutilizado: {paciente.Id}");
-        //    }
+                var newId = await _dbConnection.QueryFirstOrDefaultAsync<int>(insertQuery, new
+                {
+                    Id = medico.Id,
+                    Nombre = medico.Nombre,
+                    Matricula = medico.Matricula
+                }, transaction: transaction);
 
-        //    return paciente;
-        //}
+                if (newId > 0)
+                {
+                    // Devuelvo un nuevo MedicoDTO con el Id generado y los datos originales
+                    return new MedicoDTO
+                    {
+                        Id = newId,
+                        Nombre = medico.Nombre,
+                        Matricula = medico.Matricula
+                    };
+                }
+                else
+                {
+                    return null;
+                }
 
-        //private async Task<Medico> ObtenerOCrearMedicoAsync(MedicoDTO medicoDTO)
-        //{
-        //    // Buscar por Matrícula (o ambos campos)
-        //    var medico = await _context.Medicos
-        //        .FirstOrDefaultAsync(m => m.Matricula == medicoDTO.Matricula && m.Nombre == medicoDTO.Nombre);
+            }
+        }
 
-        //    if (medico == null)
-        //    {
-        //        medico = new Medico
-        //        {
-        //            Nombre = medicoDTO.Nombre,
-        //            Matricula = medicoDTO.Matricula
-        //        };
 
-        //        _context.Medicos.Add(medico);
-        //        await _context.SaveChangesAsync();
-        //        _logger.LogInformation($"Nuevo médico creado: {medico.Id}");
-        //    }
-        //    else
-        //    {
-        //        _logger.LogInformation($"Médico existente reutilizado: {medico.Id}");
-        //    }
+        private async Task<PrestadorDTO> ValidarPrestadorAsync(int prestadorId, IDbTransaction transaction)
+        {
+            var selectQuery = "SELECT * FROM Prestadores WHERE Id = @Id";
+            // Buscar por Id (o ambos campos)
 
-        //    return medico;
-        //}
+            var prestadorBd = await _dbConnection.QueryFirstOrDefaultAsync<PrestadorDTO>(selectQuery,
+                new { Id = prestadorId }, transaction: transaction);
+
+            //Existe el medico
+            if (prestadorBd != null)
+            {
+                var prestadorCompleto = new PrestadorDTO
+                {
+                    Id = prestadorBd.Id,
+                    Nombre = prestadorBd.Nombre,
+
+                };
+                return prestadorCompleto;
+
+            }
+            else
+            {
+                //Cancelo la transacción si no existe el prestador
+                return null;
+                //Retorno null para indicar que no se encontró el prestador
+                throw new Exception("El prestador no existe en nuestro registros");
+
+            }
+
+        }
 
     }
-
-
 
 }
 

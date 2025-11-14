@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 //Agregar la cadena de conexion al servicio
 builder.Services.AddScoped<IDbConnection>(sp =>
 {
-    var conec = new SqlConnection(builder.Configuration.GetConnectionString("ConnectionStrings"));
+    var conec = new SqlConnection(builder.Configuration.GetConnectionString("SqlConnection"));
     conec.Open();
     return conec;
 });

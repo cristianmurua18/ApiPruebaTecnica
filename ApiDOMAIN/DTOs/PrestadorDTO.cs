@@ -1,9 +1,8 @@
 ﻿namespace ApiPruebaTecnica.ApiDOMAIN.DTOs
 {
-    public class MedicoDTO
+    public class PrestadorDTO
     {
         public int Id { get; set; }
         public string Nombre { get; set; }
-        public string Matricula { get; set; }
     }
 }

@@ -24,7 +24,8 @@ namespace ApiPruebaTecnica.Controllers
         //    "descripcion": "Radiografía de tórax", "fechaSolicitud": "2025-10-30"
         //    },
         //    "medico": {
-        //        "nombre": "Dra. Gómez", "matricula": "MP12345" UNIQUE ¿?
+        //        "nombre": "Dra. Gómez",
+        //        "matricula": "MP12345" UNIQUE ¿?
         //    },
         //    "prestadorId": 18
         //}
@@ -34,21 +35,32 @@ namespace ApiPruebaTecnica.Controllers
         [HttpPost]
         public async Task<IActionResult> ProcesarSolicitud([FromBody] SolicitudDTO solicitud)
         {
-            if (solicitud != null)
+            //Aqui valido si la solicitud no viene vacia
+            try
             {
-                //La respuesta es un estudio
-                var respuesta = await _solicitudService.ProcesarSolicitudAsync(solicitud);
+                if (solicitud != null)
+                {
+                    //La respuesta es un estudio
+                    var respuesta = await _solicitudService.ProcesarSolicitudAsync(solicitud);
 
-                if (respuesta != null)
-                {
-                    return Ok(respuesta);
+                    if (respuesta != null)
+                    {
+                        //Devolver el id del estudio creado y un codigo 201
+                        return CreatedAtAction(nameof(ProcesarSolicitud), new { IdEstudio = respuesta.Id, Mensaje = "Estudio creado con exito." });
+                        
+                    }
+                    else
+                    {
+                        return BadRequest("Datos de solicitud incorrectos.");
+                    }
+
                 }
-                else
-                {
-                    return BadRequest("Datos de solicitud vacios.");
-                }
-                
             }
+            catch (Exception ex)
+            {
+                return NotFound("El prestador no existe en nuestros registros.");
+            }
+                
             // Aquí se podría agregar la lógica para procesar la solicitud, como guardarla en una base de datos.
             //return Ok(new { Mensaje = "Solicitud creada exitosamente.", Solicitud = solicitud });
             return BadRequest("Datos de solicitud vacios.");
