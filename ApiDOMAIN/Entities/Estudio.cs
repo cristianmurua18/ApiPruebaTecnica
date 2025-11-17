@@ -23,8 +23,8 @@ namespace ApiPruebaTecnica.ApiDOMAIN.Entities
         public int PrestadorId { get; set; }
 
         // Relaciones
-        public Paciente Paciente { get; set; }
-        public Medico Medico { get; set; }
-        public Prestador Prestador { get; set; }
+        //public Paciente Paciente { get; set; }
+        //public Medico Medico { get; set; }
+        //public Prestador Prestador { get; set; }
     }
 }

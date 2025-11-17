@@ -1,7 +1,6 @@
-﻿
-using ApiPruebaTecnica.ApiDATA.Daos;
+﻿using ApiPruebaTecnica.ApiDATA.Daos;
+using ApiPruebaTecnica.ApiDOMAIN.Constants;
 using ApiPruebaTecnica.ApiDOMAIN.DTOs;
-using ApiPruebaTecnica.ApiDOMAIN.Entities;
 using System.Text.RegularExpressions;
 
 namespace ApiPruebaTecnica.ApiSERVICES.Servicios
@@ -9,6 +8,7 @@ namespace ApiPruebaTecnica.ApiSERVICES.Servicios
     public class SolicitudService(IDAOSolicitudes daoSolicitudes) : ISolicitudService
     {
         private readonly IDAOSolicitudes _daoSolicitudes = daoSolicitudes;
+
         public async Task<EstudioDTO> ProcesarSolicitudAsync(SolicitudDTO solicitud)
         {
             if (solicitud.SolicitudId > 0)
@@ -19,16 +19,16 @@ namespace ApiPruebaTecnica.ApiSERVICES.Servicios
                     solicitud.Medico.Matricula = NormalizarMatricula(solicitud.Medico.Matricula);
                 }
 
-                // 4. Validar y ajustar el código del estudio según la edad del paciente
+                // Validar y ajustar el código del estudio según la edad del paciente
                 var edadPaciente = CalcularEdad(solicitud.Paciente.FechaNacimiento);
                 var codigoEstudio = solicitud.Estudio.Codigo;
 
-                if (edadPaciente > 48)
+                if (edadPaciente > EstudioConstants.EdadMinimaPrefijoMono)
                 {
                     // Si el paciente es mayor de 48 años, agregar el prefijo "MONO-" si no lo tiene
-                    if (!codigoEstudio.StartsWith("MONO-", StringComparison.OrdinalIgnoreCase))
+                    if (!codigoEstudio.StartsWith(EstudioConstants.PrefijoMono, StringComparison.OrdinalIgnoreCase))
                     {
-                        codigoEstudio = $"MONO-{codigoEstudio}";
+                        codigoEstudio = $"{EstudioConstants.PrefijoMono}{codigoEstudio}";
                         solicitud.Estudio.Codigo = codigoEstudio;
                     }
                 }
@@ -40,9 +40,9 @@ namespace ApiPruebaTecnica.ApiSERVICES.Servicios
                 else
                     return null;
             }
-            //La solicitud tiene un formato incorrecto
-            else
-                return null;
+            
+            // La solicitud tiene un formato incorrecto
+            return null;
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace ApiPruebaTecnica.ApiSERVICES.Servicios
         private string NormalizarMatricula(string matricula)
         {
             // Si ya tiene 12 caracteres, devolverla sin cambios
-            if (matricula.Length == 12)
+            if (matricula.Length == EstudioConstants.LongitudMatricula)
                 return matricula;
 
             // Extraer prefijo (letras) y número usando regex
@@ -67,7 +67,7 @@ namespace ApiPruebaTecnica.ApiSERVICES.Servicios
                 var numero = match.Groups[2].Value;
 
                 // Calcular cuántos caracteres debe tener la parte numérica
-                var longitudNumero = 12 - prefijo.Length;
+                var longitudNumero = EstudioConstants.LongitudMatricula - prefijo.Length;
 
                 // Rellenar con ceros a la izquierda
                 var numeroNormalizado = numero.PadLeft(longitudNumero, '0');
@@ -76,7 +76,7 @@ namespace ApiPruebaTecnica.ApiSERVICES.Servicios
             }
 
             // Si no coincide con el patrón esperado, rellenar con ceros a la derecha
-            return matricula.PadRight(12, '0');
+            return matricula.PadRight(EstudioConstants.LongitudMatricula, '0');
         }
 
         /// <summary>
